@@ -1,5 +1,9 @@
 # 括号法阅读助手 (BracketReader)
 
+[![CI](https://github.com/KazooTTT/bracket-reader/actions/workflows/ci.yml/badge.svg)](https://github.com/KazooTTT/bracket-reader/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Install](https://img.shields.io/badge/install-Tampermonkey-green.svg)](https://raw.githubusercontent.com/KazooTTT/bracket-reader/main/dist/bracket-reader.user.js)
+
 一个油猴脚本，把英文长难句里的**介词短语、从句、非谓语短语**括起来，露出主干。
 
 灵感来自新东方网课的「括号法」——把所有修饰成分括掉，剩下的就是主干：
