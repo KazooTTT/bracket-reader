@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         括号法阅读助手 (BracketReader)
 // @namespace    https://github.com/KazooTTT/bracket-reader
-// @version      0.4.0
+// @version      0.5.0
 // @description  用「括号法」阅读英文长难句：把介词短语、从句、非谓语括起来，露出主干。支持离线规则（即时）与 AI 精修（更准），可按网站开关自动标注。
 // @author       kazoottt
 // @match        *://*/*
@@ -119,16 +119,30 @@
 
   // ==================== 渲染 ====================
   // 规则引擎的树 → HTML
-  function treeToHtml(node) {
+  function treeToHtml(node, depth) {
+    const d = depth || 0;
     let out = '';
     for (const c of node.children) {
       if (c.type === 'text') { out += esc(c.text); continue; }
       const col = COLORS[c.type] || '#888';
       const [op, cl] = BRACKETS[c.type] || ['(', ')'];
       const low = c.conf != null && c.conf < 0.7 ? ' data-lowconf="1"' : '';
-      out += `<span class="br-mod" data-k="${c.type}" style="--c:${col}"${low}>` +
-             `<span class="br-br">${op}</span>` + treeToHtml(c) + `<span class="br-br">${cl}</span>` +
-             `</span>`;
+      let inner = treeToHtml(c, d + 1);
+      // 片段自带的空白挪到括号外面：括号才能贴住文字，而文本一个字都不丢
+      let lead = '', tail = '';
+      const lm = inner.match(/^\s+/);
+      if (lm) { lead = lm[0]; inner = inner.slice(lead.length); }
+      const tm = inner.match(/\s+$/);
+      if (tm) { tail = tm[0]; inner = inner.slice(0, -tail.length); }
+
+      // 长片段不铺底色：整段涂色反而比不标更难读
+      const plainLen = inner.replace(/<[^>]*>/g, '').length;
+      const longAttr = plainLen > 60 ? ' data-long="1"' : '';
+      const nestAttr = d > 0 ? ` data-nest="${d}"` : '';
+      out += esc(lead) +
+             `<span class="br-mod" data-k="${c.type}" style="--c:${col}"${low}${longAttr}${nestAttr}>` +
+             `<span class="br-br">${op}</span>` + inner + `<span class="br-br">${cl}</span>` +
+             `</span>` + esc(tail);
     }
     return out;
   }
@@ -716,20 +730,35 @@ Output the JSON array only. No prose, no markdown fences.`;
     if (!working) processQueue();
   }
 
+  // 每帧的时间预算（ms）。原先每处理一个节点就 setTimeout(0)，
+  // 浏览器对嵌套 setTimeout 有 4ms 下限，1000 个节点光排队就 4 秒起步。
+  // 改为在预算内连续处理多个，再让出主线程。
+  const SLICE_MS = 8;
+
   function processQueue() {
     if (!pageOn) { queue.length = 0; working = false; return; }
-    const node = queue.shift();
-    if (!node) { working = false; pulse(); return; }
+    if (!queue.length) { working = false; pulse(); return; }
     working = true;
-    stats.pending = queue.length;
 
-    // 节点可能已脱离 DOM，或被其它脚本改过
-    if (node.parentNode && !isSkippable(node.parentElement)) {
-      try { annotateNode(node, getCfg()); } catch (e) { /* 单节点失败不影响其它 */ }
+    const cfg = getCfg();
+    const deadline = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + SLICE_MS;
+    let n = 0;
+
+    while (queue.length) {
+      const node = queue.shift();
+      if (node && node.parentNode && !isSkippable(node.parentElement)) {
+        try { annotateNode(node, cfg); } catch (e) { /* 单节点失败不影响其它 */ }
+      }
+      n++;
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (now >= deadline) break;
     }
+
+    stats.pending = queue.length;
     pulse();
-    // 让出主线程，避免长页面卡顿
-    setTimeout(processQueue, 0);
+    // 预算用完才让出：用 rAF 让浏览器有机会绘制
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(processQueue);
+    else setTimeout(processQueue, 0);
   }
 
   let pulseTimer = null;
@@ -768,11 +797,44 @@ Output the JSON array only. No prose, no markdown fences.`;
   function injectCSS() {
     const st = document.createElement('style');
     st.textContent = `
-/* 标注本体 */
-.br-mod{color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent);
-  border-radius:3px;padding:1px 0}
+/* 标注本体
+   关键：括号自己贴紧内容（负 margin），但括号内必须留 padding，
+   否则文字会被压进字缝里，整段看起来挤成一团。 */
+.br-mod{
+  color:var(--c);
+  background:color-mix(in srgb,var(--c) 10%,transparent);
+  border-radius:3px;
+  padding:1px .16em;          /* 括号内呼吸空间 */
+  box-decoration-break:clone;
+  -webkit-box-decoration-break:clone;
+  /* 避免长片段在窄屏上把行撑破 */
+  overflow-wrap:break-word;
+}
+/* 长片段只留括号和淡色文字，不铺底（整段涂色反而更难读） */
+.br-mod[data-long]{background:none;color:color-mix(in srgb,var(--c) 72%,currentColor)}
+.br-mod[data-long]>.br-br{opacity:.85}
+/* 全页模式下整体压低，避免整页花掉 */
+.br-wrap .br-mod{background:color-mix(in srgb,var(--c) 7%,transparent)}
+.br-wrap .br-mod[data-long]{background:none}
+.br-wrap .br-br{opacity:.45}
+
+/* 嵌套：内层不上底色（避免颜色叠加成一片），只保留括号和文字色 */
+.br-mod[data-nest="1"]{background:none}
+.br-mod[data-nest="2"],.br-mod[data-nest="3"]{background:none;opacity:.92}
+/* 内层的括号用更细的字重，和外面区分开 */
+.br-mod[data-nest="1"]>.br-br{font-weight:400;opacity:.65}
+
 .br-mod[data-lowconf]{opacity:.55}
-.br-br{color:var(--c);opacity:.7;font-weight:600;user-select:none}
+
+/* 括号符号：略微收紧字距，贴住内容但保留可读性 */
+.br-br{
+  color:var(--c);
+  opacity:.7;
+  font-weight:600;
+  user-select:none;
+  letter-spacing:-.04em;
+}
+
 .br-item{margin-bottom:12px;line-height:1.85}
 .br-item:last-child{margin-bottom:0}
 
@@ -814,8 +876,11 @@ Output the JSON array only. No prose, no markdown fences.`;
 .br-settings[hidden]{display:none!important}
 
 /* 括号贴紧内容，不要被空白推开 */
-.br-mod>.br-br:first-child{margin-right:-.14em}
-.br-mod>.br-br:last-child{margin-left:-.14em}
+/* 不用负 margin：会和 padding 抵消，导致括号压字。
+   靠 padding + letter-spacing 控制疏密就够了。 */
+.br-mod>.br-br{letter-spacing:0}
+/* 片段跨行时，括号不跟着断到下一行中间 */
+.br-br{white-space:nowrap}
 .br-settings label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#6b7280}
 .br-settings label.br-check{flex-direction:row;align-items:center;gap:6px;color:#374151;font-size:12px}
 .br-modes{display:flex;gap:16px;font-size:12px;color:#374151}

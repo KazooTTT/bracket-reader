@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "BracketReader Test Harness",
+  "version": "1.0",
+  "description": "\u6a21\u62df Tampermonkey\uff1a\u5728\u9875\u9762\u4e3b\u4e16\u754c\u6ce8\u5165 userscript",
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "loader.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "bracket-reader.user.js",
+        "gm-shim.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "permissions": [
+    "storage"
+  ]
+}

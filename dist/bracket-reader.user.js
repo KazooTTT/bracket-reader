@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         括号法阅读助手 (BracketReader)
 // @namespace    https://github.com/KazooTTT/bracket-reader
-// @version      0.4.0
+// @version      0.5.0
 // @description  用「括号法」阅读英文长难句：把介词短语、从句、非谓语括起来，露出主干。支持离线规则（即时）与 AI 精修（更准），可按网站开关自动标注。
 // @author       kazoottt
 // @match        *://*/*
@@ -155,6 +155,87 @@
     'lock look loosen lower magnify mail march marry match measure melt mend ' +
     'merge migrate miss mix modify monitor motivate mount mourn murmur nail narrow ' +
     'listen lengthen lighten loosen tend outperform underperform outweigh pose prone ' +
+    'fuel fund fund fund form frame furnish further gain gather generate grant grasp guard guess ' +
+    'halt hammer handle harbour harm harvest hasten head heal heat heighten help herd hesitate hide ' +
+    'highlight hint hire honour hook hope host house hug humble hunt hurl hurry hurt hush identify ' +
+    'ignite ignore illustrate imagine imitate immerse impact impair impel implement imply import ' +
+    'impose impress imprison improve improvise inaugurate incline include incorporate increase ' +
+    'incubate incur indicate induce indulge infect infer inflame inflate inflict influence inform ' +
+    'infringe inherit inhibit initiate inject injure innovate inquire insert insinuate insist inspect ' +
+    'inspire install instigate instil institute instruct insulate insult insure integrate intend ' +
+    'intensify interact intercept interfere interpret interrupt intersect intervene interview ' +
+    'intimidate intrigue introduce invade invent invert invest investigate invite invoke involve ' +
+    'irrigate irritate isolate issue jam jeopardise jerk join joke jolt judge juggle jump justify ' +
+    'keep kick kidnap kill kiss kneel knit knock knot label lament land languish last laugh launch ' +
+    'lavish lay lead leak lean leap learn lease leave lecture legalise lend lengthen lessen let ' +
+    'level levy liberate license lick lie lift light like limit limp line linger link list listen ' +
+    'litter live load loan locate lock lodge long look loom loosen lose lower lubricate lure ' +
+    'maintain make manage mandate manifest manipulate manufacture march mark market marry ' +
+    'marvel mask master match materialise matter mature maximise mean measure mediate meet melt ' +
+    'memorise mend mention merge merit mesh mesmerise mind mine minimise mirror mislead miss ' +
+    'mistake mix moan mobilise mock model moderate modify mould monitor mop motivate mount mourn ' +
+    'move mow multiply murmur muster mutate mute nail name narrow navigate near necessitate need ' +
+    'negate neglect negotiate nest nominate normalise notch note notice notify nourish nurse obey ' +
+    'object oblige observe obsess obstruct obtain occupy occur offend offer offset omit open ' +
+    'operate oppose oppress optimise orbit orchestrate order organise orient originate outline ' +
+    'outperform outrun oversee overtake overwhelm owe own pace pack package paint pair pan ' +
+    'panic parade parallel paralyse pardon park part participate partition pass paste pat patch ' +
+    'patrol pause pave pay peck peel peer penetrate perceive perch perfect perform perfume ' +
+    'perish permit perplex persecute persevere persist persuade peruse petition phase phone ' +
+    'photograph pick picture piece pierce pile pilot pinch pioneer pitch pity placate place ' +
+    'plant play plead please pledge plot plough pluck plug plunge point poison polish poll ' +
+    'pollute ponder pool pop popularise populate pose position possess postpone postulate ' +
+    'pour pounce pound praise pray preach precede predict prefer prescribe present preserve ' +
+    'preside press presume pretend prevail prevent prey price prick print prioritise prise ' +
+    'proceed process proclaim procure produce profess profile profit program prohibit project ' +
+    'prolong promise promote prompt pronounce propel prophesy propose prosecute prosper protect ' +
+    'protest prove provide provoke prune publicise publish pull pump punch puncture punish ' +
+    'purchase purge pursue push put qualify quantify query quest question queue quibble quit ' +
+    'quote race radiate rain raise rally ram range rank rape rate ratify rationalise rattle ' +
+    'reach react read realign realise reap rear reason reassure rebel rebuild recall recede ' +
+    'receive recite reckon reclaim recognise recommend recompense reconcile reconstruct ' +
+    'record recount recover recruit rectify recur recycle redecorate redeem redefine redesign ' +
+    'reduce reel refer refill refine reflect reform refrain refresh refute regain regard ' +
+    'regenerate register regret regulate rehearse reign reinforce reinstate reiterate reject ' +
+    'rejoice relate relax release relegate relent relieve rely remain remark remedy remember ' +
+    'remind remove render renew renounce renovate rent repair repay repeal repeat repel ' +
+    'replace reply report represent repress reproduce request require rescue research resemble ' +
+    'resent reserve reside resign resist resolve respect respond rest restore restrain restrict ' +
+    'result resume retail retain retaliate retire retort retract retreat retrieve return ' +
+    'reunite reveal revel reverse revert review revise revive reward rid ride ring rinse riot ' +
+    'rip rise risk roam roar roast rob rock roll rot rotate rouse rub ruin rule rumble rush ' +
+    'sack sacrifice sail sanction satisfy saturate save savour say scale scan scar scare ' +
+    'scatter schedule scheme scold scoop scorch score scorn scour scout scramble scrap scrape ' +
+    'scratch scream screen screw scrutinise seal search seat secure seduce see seek seem ' +
+    'seize select sell send sense separate sequence serve set settle sever sew shade shadow ' +
+    'shake shape share sharpen shatter shave shed shelter shield shift shine ship shiver shock ' +
+    'shoot shop shove show shred shrink shrug shudder shuffle shut sigh sight sign signal ' +
+    'signify silence simplify simulate sin sing sink sip sit situate size sketch ski skip slam ' +
+    'slap slash slaughter sleep slice slide slight slip slow smash smell smile smoke smooth ' +
+    'snap snatch sneeze sniff snore soak soar sob soften soil solicit solve soothe sort sound ' +
+    'sour sow spare spark speak specify speed spell spend spill spin spit splash split spoil ' +
+    'sponsor spot spray spread spring sprinkle sprint squeeze stab stabilise stack staff stage ' +
+    'stagger stain stake stall stamp stand standardise stare start startle starve state ' +
+    'station stay steady steal steer stem step stereotype stick stimulate sting stir stitch ' +
+    'stop store storm straighten strain strand strap strengthen stress stretch stride strike ' +
+    'string strip strive stroke structure struggle study stumble stunt stun submit subordinate ' +
+    'subscribe subsist substitute subtract succeed suck suffer suffice suggest suit summon ' +
+    'supervise supplement supply support suppose suppress surge surpass surrender surround ' +
+    'survey survive suspect suspend sustain swallow swap swear sweat sweep swell swim swing ' +
+    'switch symbolise sympathise tackle tag tail take talk tame tap target taste tax teach ' +
+    'tear tease telephone tell temper tempt tend terminate terrify test testify thank ' +
+    'thaw theorise thicken thin think threaten thrill thrive throb throw thrust tick tidy tie ' +
+    'tighten tilt tip tire tolerate top topple toss total touch tour tow trace track trade ' +
+    'trail train transfer transform transgress translate transmit transport trap travel ' +
+    'tread treasure treat tremble trigger trim trip triumph trot trouble trust try tuck tug ' +
+    'tumble tune turn tutor twinkle twist type undermine understand undertake undo unfold ' +
+    'unify unite unleash unlock unpack unroll unsettle untie unveil update upgrade uphold ' +
+    'upset urge use utilise utter vacate validate value vanish vary venture verify vibrate ' +
+    'view vindicate violate visit visualise voice volunteer vote vouch vow wade wait wake ' +
+    'walk wander want warm warn warrant wash waste watch water wave waver weaken wear weary ' +
+    'weave wed weep weigh welcome weld whisper widen win wince wind wink wipe wish withdraw ' +
+    'wither withhold withstand witness wonder work worry worsen wrap wreck wrestle wring ' +
+    'write writhe yawn yell yield zone zoom ' +
     'neglect negotiate nod nominate normalise normalize nourish nurse obey object oblige ' +
     'observe obstruct occupy offend offset omit optimize order organize organise ' +
     'originate outline overlook owe pace pack paint pardon park part pass paste pause pay ' +
@@ -381,6 +462,20 @@
     // 按 [,.;:!?——] 和 sub/coord 切小句；每个小句里第一个"实物"当主语，
     // 主语之后第一个 verb?/aux 当限定谓语，其余的 verb? 交给阶段 5
     markPredicates(toks, W);
+
+    // ---------- 4.5) 名词修饰：verb? + 名词，且前词是限定/介词 → 应当是名词（light energy） ----------
+    // 收紧条件：只有前面明确是冠词/介词/形容词/数词时才名词化，
+    // 否则会把 point out 的 point、suggests 这类真谓语误伤。
+    for (let i = 0; i < W.length - 1; i++) {
+      const t = W[i], next = W[i + 1];
+      if (t.pos !== 'verb?' && t.pos !== 'verb') continue;
+      if (t.isPred) continue;                       // 已判定为谓语，不动
+      if (next.pos !== 'noun' && next.pos !== 'num') continue;
+      const prev = W[i - 1];
+      if (!prev) continue;
+      if (!/^(det|prep|adj|num)$/.test(prev.pos)) continue;
+      t.pos = 'noun';
+    }
 
     // ---------- 5) 分词 / 名词收尾 ----------
     for (let i = 0; i < W.length; i++) {
@@ -632,6 +727,32 @@
     return null;
   }
 
+  // 逗号是否结束这一层
+  // - 非谓语：结束
+  // - 状语从句（when/while/because/if/although…）：结束
+  // - 关系从句（who/which/that/where…）：结束
+  // - 名词性从句（that/whether 作宾语或主语）：不结束 ——
+  //   逗号属于它内部插入的成分，例如
+  //   "suspected [that the decline, ‹which pollinates X›, could trigger]"
+  const ADVERBIAL = new Set(('when whenever while whilst because since as if unless although though ' +
+    'even whereas until till before after once where wherever so').split(' '));
+  const RELATIVE = new Set(('who whom whose which that where when why'.split(' ')));
+
+  function commaEndsLevel(node, commaTok, i) {
+    if (node.type === 'nonfinite') return true;
+
+    // 从句：看引导词
+    const lead = node.leadWord ? node.leadWord.toLowerCase() : null;
+    if (!lead) return true;                 // 没有引导词，按结束处理
+    if (ADVERBIAL.has(lead)) return true;
+    if (RELATIVE.has(lead)) {
+      // that 更常见于名词性从句，需谨慎：只有当它已经有谓语才认为是关系从句
+      if (lead === 'that' && node.verbs < 1) return false;
+      return true;
+    }
+    return false;                           // that/whether 等名词性从句：逗号不结束
+  }
+
   // ================= 树构建 =================
   function buildTree(toks) {
     const rootNode = { type: 'root', children: [] };
@@ -710,23 +831,12 @@
           }
           // clause / nonfinite
           if (isHardEnd(t) || isClose(t) || isOpen(t)) { close(); continue; }
-          // 逗号是否真的终止从句，要看逗号后面接什么：
-          //   后接关系词/从属连词/非谓语 → 这是插入的修饰成分，从句继续
-          //   后接谓动               → 插入语结束，从句到头了
-          //   后接新主语(det/pron/noun) → 从句到头了
+          // 逗号处要一层层往外判断：能结束的层都关掉，遇到不能结束的才停。
+          // 之前只关一层就 break，导致 [When needing ‹to use…›, 主句] 从句吞到句尾。
           if (isComma(t)) {
-            const hasContent = n.children.some(c => c.type === 'text' && c.text.trim());
-            if (!hasContent) break;
-            const after = nextWordToken(i);
-            if (!after) { close(); break; }
-            if (after.pos === 'sub' || after.pos === 'nonfinite' || after.pos === 'coord') break;
-            if (after.pos === 'verb' || after.pos === 'aux') { close(); break; }
-            if (after.pos === 'det' || after.pos === 'pron' || after.pos === 'noun' || after.pos === 'num') {
-              if (finiteVerbAhead(i, 7)) { close(); break; }
-              break;
-            }
-            if (after.pos === 'prep' || after.pos === 'adv') break;
-            break;
+            if (!commaEndsLevel(n, t, i)) break;   // 本层不该在逗号处结束
+            close();
+            continue;                              // 继续往外判断
           }
           if (isQuote(t)) break;
           if (t.pos === 'coord') {
@@ -769,7 +879,8 @@
           top()._prepIdx = i;
           opened = true;
         } else if (t.pos === 'sub') {
-          open('clause', 0.9);
+          const nn = open('clause', 0.9);
+          nn.leadWord = t.text;
           opened = true;
         } else if (t.pos === 'nonfinite') {
           open('nonfinite', 0.8);
@@ -949,16 +1060,30 @@
 
   // ==================== 渲染 ====================
   // 规则引擎的树 → HTML
-  function treeToHtml(node) {
+  function treeToHtml(node, depth) {
+    const d = depth || 0;
     let out = '';
     for (const c of node.children) {
       if (c.type === 'text') { out += esc(c.text); continue; }
       const col = COLORS[c.type] || '#888';
       const [op, cl] = BRACKETS[c.type] || ['(', ')'];
       const low = c.conf != null && c.conf < 0.7 ? ' data-lowconf="1"' : '';
-      out += `<span class="br-mod" data-k="${c.type}" style="--c:${col}"${low}>` +
-             `<span class="br-br">${op}</span>` + treeToHtml(c) + `<span class="br-br">${cl}</span>` +
-             `</span>`;
+      let inner = treeToHtml(c, d + 1);
+      // 片段自带的空白挪到括号外面：括号才能贴住文字，而文本一个字都不丢
+      let lead = '', tail = '';
+      const lm = inner.match(/^\s+/);
+      if (lm) { lead = lm[0]; inner = inner.slice(lead.length); }
+      const tm = inner.match(/\s+$/);
+      if (tm) { tail = tm[0]; inner = inner.slice(0, -tail.length); }
+
+      // 长片段不铺底色：整段涂色反而比不标更难读
+      const plainLen = inner.replace(/<[^>]*>/g, '').length;
+      const longAttr = plainLen > 60 ? ' data-long="1"' : '';
+      const nestAttr = d > 0 ? ` data-nest="${d}"` : '';
+      out += esc(lead) +
+             `<span class="br-mod" data-k="${c.type}" style="--c:${col}"${low}${longAttr}${nestAttr}>` +
+             `<span class="br-br">${op}</span>` + inner + `<span class="br-br">${cl}</span>` +
+             `</span>` + esc(tail);
     }
     return out;
   }
@@ -1546,20 +1671,35 @@ Output the JSON array only. No prose, no markdown fences.`;
     if (!working) processQueue();
   }
 
+  // 每帧的时间预算（ms）。原先每处理一个节点就 setTimeout(0)，
+  // 浏览器对嵌套 setTimeout 有 4ms 下限，1000 个节点光排队就 4 秒起步。
+  // 改为在预算内连续处理多个，再让出主线程。
+  const SLICE_MS = 8;
+
   function processQueue() {
     if (!pageOn) { queue.length = 0; working = false; return; }
-    const node = queue.shift();
-    if (!node) { working = false; pulse(); return; }
+    if (!queue.length) { working = false; pulse(); return; }
     working = true;
-    stats.pending = queue.length;
 
-    // 节点可能已脱离 DOM，或被其它脚本改过
-    if (node.parentNode && !isSkippable(node.parentElement)) {
-      try { annotateNode(node, getCfg()); } catch (e) { /* 单节点失败不影响其它 */ }
+    const cfg = getCfg();
+    const deadline = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + SLICE_MS;
+    let n = 0;
+
+    while (queue.length) {
+      const node = queue.shift();
+      if (node && node.parentNode && !isSkippable(node.parentElement)) {
+        try { annotateNode(node, cfg); } catch (e) { /* 单节点失败不影响其它 */ }
+      }
+      n++;
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (now >= deadline) break;
     }
+
+    stats.pending = queue.length;
     pulse();
-    // 让出主线程，避免长页面卡顿
-    setTimeout(processQueue, 0);
+    // 预算用完才让出：用 rAF 让浏览器有机会绘制
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(processQueue);
+    else setTimeout(processQueue, 0);
   }
 
   let pulseTimer = null;
@@ -1598,11 +1738,44 @@ Output the JSON array only. No prose, no markdown fences.`;
   function injectCSS() {
     const st = document.createElement('style');
     st.textContent = `
-/* 标注本体 */
-.br-mod{color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent);
-  border-radius:3px;padding:1px 0}
+/* 标注本体
+   关键：括号自己贴紧内容（负 margin），但括号内必须留 padding，
+   否则文字会被压进字缝里，整段看起来挤成一团。 */
+.br-mod{
+  color:var(--c);
+  background:color-mix(in srgb,var(--c) 10%,transparent);
+  border-radius:3px;
+  padding:1px .16em;          /* 括号内呼吸空间 */
+  box-decoration-break:clone;
+  -webkit-box-decoration-break:clone;
+  /* 避免长片段在窄屏上把行撑破 */
+  overflow-wrap:break-word;
+}
+/* 长片段只留括号和淡色文字，不铺底（整段涂色反而更难读） */
+.br-mod[data-long]{background:none;color:color-mix(in srgb,var(--c) 72%,currentColor)}
+.br-mod[data-long]>.br-br{opacity:.85}
+/* 全页模式下整体压低，避免整页花掉 */
+.br-wrap .br-mod{background:color-mix(in srgb,var(--c) 7%,transparent)}
+.br-wrap .br-mod[data-long]{background:none}
+.br-wrap .br-br{opacity:.45}
+
+/* 嵌套：内层不上底色（避免颜色叠加成一片），只保留括号和文字色 */
+.br-mod[data-nest="1"]{background:none}
+.br-mod[data-nest="2"],.br-mod[data-nest="3"]{background:none;opacity:.92}
+/* 内层的括号用更细的字重，和外面区分开 */
+.br-mod[data-nest="1"]>.br-br{font-weight:400;opacity:.65}
+
 .br-mod[data-lowconf]{opacity:.55}
-.br-br{color:var(--c);opacity:.7;font-weight:600;user-select:none}
+
+/* 括号符号：略微收紧字距，贴住内容但保留可读性 */
+.br-br{
+  color:var(--c);
+  opacity:.7;
+  font-weight:600;
+  user-select:none;
+  letter-spacing:-.04em;
+}
+
 .br-item{margin-bottom:12px;line-height:1.85}
 .br-item:last-child{margin-bottom:0}
 
@@ -1644,8 +1817,11 @@ Output the JSON array only. No prose, no markdown fences.`;
 .br-settings[hidden]{display:none!important}
 
 /* 括号贴紧内容，不要被空白推开 */
-.br-mod>.br-br:first-child{margin-right:-.14em}
-.br-mod>.br-br:last-child{margin-left:-.14em}
+/* 不用负 margin：会和 padding 抵消，导致括号压字。
+   靠 padding + letter-spacing 控制疏密就够了。 */
+.br-mod>.br-br{letter-spacing:0}
+/* 片段跨行时，括号不跟着断到下一行中间 */
+.br-br{white-space:nowrap}
 .br-settings label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#6b7280}
 .br-settings label.br-check{flex-direction:row;align-items:center;gap:6px;color:#374151;font-size:12px}
 .br-modes{display:flex;gap:16px;font-size:12px;color:#374151}

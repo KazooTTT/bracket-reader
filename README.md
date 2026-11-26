@@ -103,7 +103,12 @@ Model   : group/deepseek-free
 | 蓝 | `[ ]` | 从句 |
 | 紫 | `‹ ›` | 非谓语短语 |
 
-半透明的表示规则引擎置信度低，建议用 AI 复核。
+样式规则：
+
+- **括号内留 padding**，文字不贴括号
+- **长片段（>60 字符）不上底色**，只留括号和淡色文字 —— 整段涂色反而比不标更难读
+- **嵌套时内层不上底色**，避免颜色叠成一片；内层括号字重更细，用来和外面区分
+- 半透明的表示规则引擎置信度低，建议用 AI 复核
 
 面板底部显示**主干**。如果出现黄色的「N 句结构可疑」标签，说明那句主干不像完整小句，需要人工核对。
 
@@ -132,9 +137,11 @@ AI 返回的每个片段会被拼回去做**硬性重建校验**：必须和原�
 │   ├── bottleneck.js    瓶颈测量（span F1 / 主谓识别）
 │   ├── harness.js       DOM 桩冒烟测试
 │   └── e2e/
-│       ├── accept.mjs       浏览器端到端验收（主流程）
-│       ├── concurrency.mjs  并发实现验证（固定延迟 mock）
-│       └── mock-llm.mjs     可控假 LLM
+│       ├── accept.mjs          端到端验收（主流程）
+│       ├── concurrency.mjs     并发实现验证（固定延迟 mock）
+│       ├── sites-headless.mjs  真实站点冒烟（headless + MV3 扩展）
+│       ├── mock-llm.mjs        可控假 LLM
+│       └── extension/          模拟 Tampermonkey 的 MV3 扩展
 └── dist/                构建产物（已提交，供 @updateURL 拉取）
 ```
 
@@ -144,16 +151,18 @@ npm test                # 单元测试
 npm run test:accuracy   # 真实长难句准确率
 npm run test:bottleneck # 瓶颈测量
 npm run test:e2e        # 浏览器验收 + 并发验证（需先 build；无本地网关时自动跳过 AI 部分）
+npm run test:sites      # 真实站点冒烟（headless + 扩展，覆盖 CSP 严格站点；需联网）
 ```
 
 ### 当前测试结果
 
 ```
 基础用例      10/10
-泛化用例      18/20
+泛化用例      19/20
 真实长句      8/20 主干完全正确（40%）
-e2e 主流程    12/12
-e2e 并发       5/5
+e2e 主流程     12/12
+e2e 并发        5/5
+真实站点        3/3（Wikipedia / MDN / GitHub）
 ```
 
 ## License
