@@ -7,6 +7,9 @@ import fs from 'fs';
 fs.mkdirSync('test/e2e/.shots', { recursive: true });
 
 const extPath = path.resolve('test/e2e/extension');
+// 扩展目录里的 userscript 是构建产物，运行时从 dist 同步，
+// 避免提交一份副本后忘记更新导致测到旧版本
+fs.copyFileSync('dist/bracket-reader.user.js', path.join(extPath, 'bracket-reader.user.js'));
 
 const b = await chromium.launchPersistentContext('', {
   channel: 'chromium',              // 新版 headless 支持扩展

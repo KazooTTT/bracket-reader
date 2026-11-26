@@ -3,3 +3,4 @@ test/e2e/.shots/
 test/e2e/.multi.html
 .DS_Store
 *.log
+test/e2e/extension/bracket-reader.user.js
