@@ -612,7 +612,8 @@ Output the JSON array only. No prose, no markdown fences.`;
     const parent = textNode.parentNode;
     if (!parent) return;
     parent.replaceChild(frag, textNode);
-    stats.marked++;
+    // 按段落数计，和页面上 br-wrap 的数量口径一致
+    stats.marked += r.sentences.length;
   }
 
   function startPageAnnotate() {
