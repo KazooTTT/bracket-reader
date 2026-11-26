@@ -51,5 +51,8 @@ jobs:
       - name: Build
         run: node build.js
 
-      - name: E2E
+      - name: E2E（主流程）
         run: node test/e2e/accept.mjs
+
+      - name: E2E（并发实现）
+        run: node test/e2e/concurrency.mjs

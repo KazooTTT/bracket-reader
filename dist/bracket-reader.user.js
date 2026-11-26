@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         括号法阅读助手 (BracketReader)
 // @namespace    https://github.com/KazooTTT/bracket-reader
-// @version      0.3.0
+// @version      0.4.0
 // @description  用「括号法」阅读英文长难句：把介词短语、从句、非谓语括起来，露出主干。支持离线规则（即时）与 AI 精修（更准），可按网站开关自动标注。
 // @author       kazoottt
 // @match        *://*/*
@@ -863,6 +863,7 @@
     model: 'group/deepseek-free',
     mode: 'rules',            // rules | ai
     noThinking: true,         // 关思考，快很多
+    concurrency: 5,           // AI 并发数（实测 5~8 接近网关上限）
     autoSite: false,          // 本网站是否自动标注
     markCore: true,           // 高亮主干
   };
@@ -1113,6 +1114,7 @@ Output the JSON array only. No prose, no markdown fences.`;
         <label>API Key<input class="br-in br-key" type="password" placeholder="留空则不需要"></label>
         <label>Model<input class="br-in br-model" placeholder="group/deepseek-free"></label>
         <label class="br-check"><input type="checkbox" class="br-nothink"> 关闭思考模式（快 10 倍）</label>
+        <label>并发数<input class="br-in br-conc" type="number" min="1" max="16" placeholder="5"></label>
         <div class="br-row">
           <button class="br-btn br-save">保存</button>
           <span class="br-hint"></span>
@@ -1136,6 +1138,7 @@ Output the JSON array only. No prose, no markdown fences.`;
         panel.querySelector('.br-key').value = c.apiKey;
         panel.querySelector('.br-model').value = c.model;
         panel.querySelector('.br-nothink').checked = c.noThinking;
+        panel.querySelector('.br-conc').value = c.concurrency;
         const r = panel.querySelector(`input[name="brmode"][value="${c.mode}"]`);
         if (r) r.checked = true;
       }
@@ -1148,6 +1151,7 @@ Output the JSON array only. No prose, no markdown fences.`;
         apiKey: panel.querySelector('.br-key').value.trim(),
         model: panel.querySelector('.br-model').value.trim(),
         noThinking: panel.querySelector('.br-nothink').checked,
+        concurrency: Math.max(1, Math.min(16, parseInt(panel.querySelector('.br-conc').value, 10) || 5)),
         mode: modeEl ? modeEl.value : 'rules',
       });
       const h = panel.querySelector('.br-hint');
@@ -1219,57 +1223,105 @@ Output the JSON array only. No prose, no markdown fences.`;
 
     const htmls = r.sentences.map(s => treeToHtml(s.tree));
     const cores = r.sentences.map(s => s.core);
-    let done = 0, failed = 0;
+    const total = r.sentences.length;
 
-    const progress = () => {
-      const n = body.querySelector('.br-progress');
-      if (n) n.textContent = `AI 分析中… ${done}/${r.sentences.length}` + (failed ? `（${failed} 句回退到规则）` : '');
-    };
-    progress();
+    let done = 0, failed = 0, finished = false;
+    let paintQueued = false;
 
-    // 串行，避免打爆网关；AI 模式追求准，不追求并行
-    for (let i = 0; i < r.sentences.length; i++) {
-      const s = r.sentences[i];
-      if (p !== panel) break;    // 面板已被关闭
-      const cached = cacheGet(s.text);
-      if (cached) {
-        htmls[i] = cached.html; cores[i] = cached.core;
-        done++; progress(); repaint();
-        continue;
-      }
-      try {
-        const arr = await callLLM(s.text, cfg);
-        const { html, core: c } = llmToHtml(arr);
-        htmls[i] = html;
-        cores[i] = c.replace(/\s+/g, ' ').trim();
-        cacheSet(s.text, { html: htmls[i], core: cores[i] });
-      } catch (e) {
-        failed++;
-        htmls[i] += `<div class="br-err">AI 失败（${esc(e.message)}），已保留离线结果</div>`;
-      }
-      done++; progress(); repaint();
-    }
+    const conc = Math.max(1, Math.min(16, cfg.concurrency || 5));
+    const used = Math.min(conc, total);
 
-    const pr = body.querySelector('.br-progress');
-    if (pr) {
-      if (failed) pr.textContent = `${failed} 句 AI 失败，已用离线规则`;
-      else pr.remove();
-    }
-    repaint();
+    const progressText = () =>
+      `AI 分析中… ${done}/${total}（并发 ${used}）` + (failed ? `，${failed} 句回退到规则` : '');
 
-    function repaint() {
-      const keep = body.querySelector('.br-progress');
-      const keepText = keep ? keep.textContent : null;
-      body.innerHTML = htmls.map(h => `<div class="br-item">${h}</div>`).join('');
-      if (keepText != null && failed) {
-        body.insertAdjacentHTML('afterbegin', `<div class="br-note br-progress">${esc(keepText)}</div>`);
-      }
+    // 统一渲染：finished 之后不再显示进度提示
+    function paint() {
+      paintQueued = false;
+      if (p !== panel) return;
+      const warning = failed
+        ? `<div class="br-note br-progress">${finished
+            ? `${failed} 句 AI 失败，已用离线规则`
+            : esc(progressText())}</div>`
+        : (!finished ? `<div class="br-note br-progress">${esc(progressText())}</div>` : '');
+      body.innerHTML = warning + htmls.map(h => `<div class="br-item">${h}</div>`).join('');
       renderCore(foot, cores);
     }
+
+    // 并发下每句都重绘会抖，合并到下一帧
+    function schedulePaint() {
+      if (paintQueued || finished) return;
+      paintQueued = true;
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(paint);
+      else setTimeout(paint, 16);
+    }
+
+    paint();
+
+    let cursor = 0;
+    let aborted = false;
+
+    async function worker() {
+      while (true) {
+        if (aborted || p !== panel) { aborted = true; return; }
+        const i = cursor++;
+        if (i >= total) return;
+        const s = r.sentences[i];
+
+        const cached = cacheGet(s.text);
+        if (cached) {
+          htmls[i] = cached.html;
+          cores[i] = cached.core;
+          done++;
+          schedulePaint();
+          continue;
+        }
+
+        try {
+          let arr;
+          try {
+            arr = await callLLM(s.text, cfg);
+          } catch (e) {
+            // 重建校验失败多半是模型漏字，重试一次通常就过
+            if (e.message === 'RECONSTRUCT_MISMATCH' && !aborted && p === panel) {
+              arr = await callLLM(s.text, cfg);
+            } else throw e;
+          }
+          if (aborted || p !== panel) return;   // 面板已关闭，丢弃过期结果
+          const { html, core: c } = llmToHtml(arr);
+          htmls[i] = html;
+          cores[i] = c.replace(/\s+/g, ' ').trim();
+          cacheSet(s.text, { html: htmls[i], core: cores[i] });
+        } catch (e) {
+          if (aborted || p !== panel) return;
+          failed++;
+          htmls[i] += `<div class="br-err">AI 失败（${esc(e.message)}），已保留离线结果</div>`;
+        }
+        done++;
+        schedulePaint();
+      }
+    }
+
+    await Promise.all(Array.from({ length: used }, worker));
+
+    // 收尾：标记完成并同步绘制一次，确保进度提示被清除
+    finished = true;
+    paintQueued = false;
+    paint();
+  }
+
+  // 主干首尾残留的标点要去掉（AI 常把逗号划在主干开头）
+  function tidyCore(c) {
+    return String(c || '')
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s,;:—–、]+/, '')
+      .replace(/\s*([,;:—–、])\s*$/, '')
+      .replace(/\s+\./g, '.')
+      .replace(/[\s,;:—–、]+$/, '')
+      .trim();
   }
 
   function renderCore(foot, cores) {
-    const clean = (cores || []).filter(c => c && c.trim());
+    const clean = (cores || []).map(tidyCore).filter(c => c);
     if (!clean.length) { foot.innerHTML = ''; return; }
     const suspicious = clean.filter(c => !looksLikeClause(c));
     foot.innerHTML =

@@ -74,8 +74,9 @@ function ok(name, pass, extra){ results.push([pass,name,extra||'']); console.log
   const wraps = await p.locator('span.br-wrap').count();
   const mods = await p.locator('span.br-mod').count();
   const badge = await p.locator('.br-badge').textContent().catch(()=>'');
-  ok('全页标注已执行', wraps===6, `${wraps} 段 / ${mods} 处修饰`);
-  ok('状态徽标', /括号法 6 段/.test(badge||''), badge);
+  const EXPECT_WRAPS = 7;   // 页面里 7 个含英文段落的元素
+  ok('全页标注已执行', wraps === EXPECT_WRAPS, `${wraps} 段 / ${mods} 处修饰`);
+  ok('状态徽标', new RegExp(`括号法 ${EXPECT_WRAPS} 段`).test(badge||''), badge);
 
   const plain = await p.evaluate(()=>{
     const strip = el => { let s=''; for(const n of el.childNodes){ if(n.nodeType===3)s+=n.nodeValue;
