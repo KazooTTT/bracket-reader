@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         括号法阅读助手 (BracketReader)
 // @namespace    https://github.com/KazooTTT/bracket-reader
-// @version      0.5.0
+// @version      0.6.0
 // @description  用「括号法」阅读英文长难句：把介词短语、从句、非谓语括起来，露出主干。支持离线规则（即时）与 AI 精修（更准），可按网站开关自动标注。
 // @author       kazoottt
 // @match        *://*/*
@@ -26,6 +26,7 @@
   const CFG_KEY = 'bracketReader.config';
   const SITE_KEY = 'bracketReader.sites';
   const CACHE_KEY = 'bracketReader.cache';
+  const FAB_POS_KEY = 'bracketReader.fabPos';
 
   const DEFAULTS = {
     apiUrl: 'http://127.0.0.1:3425/v1',
@@ -34,7 +35,7 @@
     mode: 'rules',            // rules | ai
     noThinking: true,         // 关思考，快很多
     concurrency: 5,           // AI 并发数（实测 5~8 接近网关上限）
-    autoSite: false,          // 本网站是否自动标注
+    autoSite: true,           // 默认在所有网站自动标注
     markCore: true,           // 高亮主干
   };
 
@@ -66,17 +67,20 @@
 
   // 每个网站独立开关
   function hostKey() { return location.hostname || 'local'; }
+  // 默认开启：没显式关过的站点一律视为开
   function siteEnabled() {
     const raw = gmGet(SITE_KEY, '');
     let m = {};
     try { m = raw ? JSON.parse(raw) : {}; } catch (e) { m = {}; }
-    return !!m[hostKey()];
+    const v = m[hostKey()];
+    if (v === 0 || v === false) return false;
+    return true;
   }
   function setSiteEnabled(on) {
     const raw = gmGet(SITE_KEY, '');
     let m = {};
     try { m = raw ? JSON.parse(raw) : {}; } catch (e) { m = {}; }
-    if (on) m[hostKey()] = 1; else delete m[hostKey()];
+    m[hostKey()] = on ? 1 : 0;
     gmSet(SITE_KEY, JSON.stringify(m));
   }
 
@@ -119,15 +123,26 @@
 
   // ==================== 渲染 ====================
   // 规则引擎的树 → HTML
+  //
+  // 设计要点（2026-11-26 改）：括号法的目的是让主干浮现，所以视觉重心必须落在主干，
+  // 修饰成分只做「退让」。早先版本给修饰上色，结果修饰比主干更抢眼，方向是反的。
+  // 现在：主干明确包裹并加粗；修饰只降对比度 + 细括号，不着色、不铺底。
   function treeToHtml(node, depth) {
     const d = depth || 0;
     let out = '';
+
     for (const c of node.children) {
-      if (c.type === 'text') { out += esc(c.text); continue; }
-      const col = COLORS[c.type] || '#888';
+      if (c.type === 'text') {
+        // 主干文本可能是纯空白（分隔用），直接输出
+        if (c.text.trim()) out += `<span class="br-core-t">${esc(c.text)}</span>`;
+        else out += esc(c.text);
+        continue;
+      }
+
       const [op, cl] = BRACKETS[c.type] || ['(', ')'];
       const low = c.conf != null && c.conf < 0.7 ? ' data-lowconf="1"' : '';
       let inner = treeToHtml(c, d + 1);
+
       // 片段自带的空白挪到括号外面：括号才能贴住文字，而文本一个字都不丢
       let lead = '', tail = '';
       const lm = inner.match(/^\s+/);
@@ -135,12 +150,11 @@
       const tm = inner.match(/\s+$/);
       if (tm) { tail = tm[0]; inner = inner.slice(0, -tail.length); }
 
-      // 长片段不铺底色：整段涂色反而比不标更难读
-      const plainLen = inner.replace(/<[^>]*>/g, '').length;
-      const longAttr = plainLen > 60 ? ' data-long="1"' : '';
+      const longAttr = inner.replace(/<[^>]*>/g, '').length > 60 ? ' data-long="1"' : '';
       const nestAttr = d > 0 ? ` data-nest="${d}"` : '';
+
       out += esc(lead) +
-             `<span class="br-mod" data-k="${c.type}" style="--c:${col}"${low}${longAttr}${nestAttr}>` +
+             `<span class="br-mod" data-k="${c.type}"${low}${longAttr}${nestAttr}>` +
              `<span class="br-br">${op}</span>` + inner + `<span class="br-br">${cl}</span>` +
              `</span>` + esc(tail);
     }
@@ -616,12 +630,18 @@ Output the JSON array only. No prose, no markdown fences.`;
     if (!r.sentences.length) return;
 
     const frag = document.createDocumentFragment();
-    for (const s of r.sentences) {
+    for (let i = 0; i < r.sentences.length; i++) {
+      const s = r.sentences[i];
       const span = document.createElement('span');
       span.className = 'br-wrap';
       span.dataset.br = '1';
       span.innerHTML = treeToHtml(s.tree);
       frag.appendChild(span);
+      // 句与句之间补一个空格：否则跨 span 取文本会得到 "office.Scientists" 这种粘连，
+      // 下游切句会整段失败。最后一个片段按原样处理。
+      if (i < r.sentences.length - 1 && !/\s$/.test(s.text)) {
+        frag.appendChild(document.createTextNode(' '));
+      }
     }
     const parent = textNode.parentNode;
     if (!parent) return;
@@ -797,46 +817,74 @@ Output the JSON array only. No prose, no markdown fences.`;
   function injectCSS() {
     const st = document.createElement('style');
     st.textContent = `
-/* 标注本体
-   关键：括号自己贴紧内容（负 margin），但括号内必须留 padding，
-   否则文字会被压进字缝里，整段看起来挤成一团。 */
+/* ===== 标注本体：主干强化，修饰退让 ===== */
+/* 主干：明确强化。括号法是减法，目标是让主干浮现，
+   所以视觉重心必须压在主干上，而不是给修饰上色。 */
+.br-core-t{
+  font-weight:600;
+  color:inherit;
+}
+
+/* 修饰成分：退让。降对比度 + 细括号，不着色、不铺底色。 */
 .br-mod{
-  color:var(--c);
-  background:color-mix(in srgb,var(--c) 10%,transparent);
-  border-radius:3px;
-  padding:1px .16em;          /* 括号内呼吸空间 */
+  color:color-mix(in srgb, currentColor 62%, transparent);
+  padding:0 .1em;
   box-decoration-break:clone;
   -webkit-box-decoration-break:clone;
-  /* 避免长片段在窄屏上把行撑破 */
   overflow-wrap:break-word;
 }
-/* 长片段只留括号和淡色文字，不铺底（整段涂色反而更难读） */
-.br-mod[data-long]{background:none;color:color-mix(in srgb,var(--c) 72%,currentColor)}
-.br-mod[data-long]>.br-br{opacity:.85}
-/* 全页模式下整体压低，避免整页花掉 */
-.br-wrap .br-mod{background:color-mix(in srgb,var(--c) 7%,transparent)}
-.br-wrap .br-mod[data-long]{background:none}
-.br-wrap .br-br{opacity:.45}
 
-/* 嵌套：内层不上底色（避免颜色叠加成一片），只保留括号和文字色 */
-.br-mod[data-nest="1"]{background:none}
-.br-mod[data-nest="2"],.br-mod[data-nest="3"]{background:none;opacity:.92}
-/* 内层的括号用更细的字重，和外面区分开 */
-.br-mod[data-nest="1"]>.br-br{font-weight:400;opacity:.65}
-
-.br-mod[data-lowconf]{opacity:.55}
-
-/* 括号符号：略微收紧字距，贴住内容但保留可读性 */
+/* 括号符号：比正文略淡，不抢视线 */
 .br-br{
-  color:var(--c);
-  opacity:.7;
-  font-weight:600;
+  color:color-mix(in srgb, currentColor 42%, transparent);
+  font-weight:400;
   user-select:none;
-  letter-spacing:-.04em;
 }
+
+/* 长片段：再淡一层，避免整段变成一片灰 */
+.br-mod[data-long]{ color:color-mix(in srgb, currentColor 52%, transparent); }
+
+/* 嵌套：内层不再额外降淡（外层已经足够淡），只让括号更细 */
+.br-mod[data-nest="1"]>.br-br,
+.br-mod[data-nest="2"]>.br-br{ opacity:.55 }
+
+/* 置信度低：整段更淡，提示需要核对 */
+.br-mod[data-lowconf]{ opacity:.5 }
 
 .br-item{margin-bottom:12px;line-height:1.85}
 .br-item:last-child{margin-bottom:0}
+
+/* 常驻悬浮球 */
+.br-orb{
+  position:fixed;z-index:2147483646;
+  display:flex;align-items:center;gap:6px;
+  padding:7px 13px;border-radius:999px;
+  background:#111827;color:#fff;
+  font:500 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  box-shadow:0 4px 16px rgba(0,0,0,.28);
+  cursor:pointer;user-select:none;
+  opacity:.82;transition:opacity .15s,transform .15s,background .15s;
+}
+.br-orb:hover{opacity:1;transform:translateY(-1px)}
+.br-orb.dragging{cursor:grabbing;opacity:1;transform:none}
+.br-orb.on{background:#059669}
+.br-orb.open{background:#2563eb}
+
+/* 小圆点：开=亮绿，关=灰 */
+.br-orb-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:#9ca3af;flex:none;
+  box-shadow:0 0 0 2px rgba(255,255,255,.18);
+}
+.br-orb.on .br-orb-dot{background:#d1fae5}
+
+.br-orb-txt{letter-spacing:.2px}
+
+@media(prefers-color-scheme:dark){
+ .br-orb{background:#2b3038;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+ .br-orb.on{background:#047857}
+ .br-orb.open{background:#1d4ed8}
+}
 
 /* 划词按钮 */
 .br-fab{position:absolute;z-index:2147483646;background:#111827;color:#fff;border:0;border-radius:7px;
@@ -845,7 +893,7 @@ Output the JSON array only. No prose, no markdown fences.`;
 .br-fab:hover{background:#374151}
 
 /* 面板 */
-.br-panel{position:fixed;right:20px;bottom:20px;width:min(600px,calc(100vw - 40px));max-height:66vh;
+.br-panel{position:fixed;right:20px;bottom:72px;width:min(600px,calc(100vw - 40px));max-height:66vh;
   z-index:2147483647;background:#fff;color:#111;border-radius:12px;
   box-shadow:0 12px 44px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   font:14px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -900,6 +948,11 @@ Output the JSON array only. No prose, no markdown fences.`;
 .br-toast.show{opacity:1;transform:translate(-50%,0)}
 
 @media(prefers-color-scheme:dark){
+ /* 深色下修饰成分要往亮的方向退，而不是压黑 */
+ .br-mod{ color:color-mix(in srgb, currentColor 58%, transparent) }
+ .br-mod[data-long]{ color:color-mix(in srgb, currentColor 48%, transparent) }
+ .br-br{ color:color-mix(in srgb, currentColor 38%, transparent) }
+
  .br-panel{background:#1c1f24;color:#e5e7eb}
  .br-head{background:#22262c;border-color:#2f343c}
  .br-btn{background:#2b3038;color:#d5d9df}
@@ -916,6 +969,135 @@ Output the JSON array only. No prose, no markdown fences.`;
     (document.head || document.documentElement).appendChild(st);
   }
 
+  // ==================== 常驻悬浮球 ====================
+  // 目的：不划线也能进入。默认全站已开启，这个球是「入口 + 状态指示 + 快捷开关」。
+  let orb = null;
+
+  function makeOrb() {
+    if (orb) return orb;
+    orb = document.createElement('div');
+    orb.className = 'br-orb';
+    orb.title = '括号法（点开面板 · 拖动可移动）';
+    orb.innerHTML = '<span class="br-orb-dot"></span><span class="br-orb-txt">括号法</span>';
+
+    document.documentElement.appendChild(orb);
+    restoreOrbPos();
+
+    // 拖拽 vs 点击：位移超过 4px 视为拖动
+    let down = null, moved = false;
+    let pickedAtDown = '';
+
+    orb.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      // mousedown 的默认行为会清空选区，所以先把选中的文字记下来
+      const sel = window.getSelection();
+      pickedAtDown = sel && !sel.isCollapsed ? sel.toString().trim() : '';
+      down = { x: e.clientX, y: e.clientY, left: orb.offsetLeft, top: orb.offsetTop };
+      moved = false;
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      orb.classList.add('dragging');
+      setOrbPos(clampX(down.left + dx), clampY(down.top + dy));
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!down) return;
+      const wasDrag = moved;
+      down = null;
+      orb.classList.remove('dragging');
+      if (wasDrag) saveOrbPos();
+      else togglePanelFromOrb(pickedAtDown);
+    });
+
+    updateOrbState();
+    return orb;
+  }
+
+  function clampX(x) {
+    return Math.max(4, Math.min(window.innerWidth - (orb ? orb.offsetWidth : 90) - 4, x));
+  }
+  function clampY(y) {
+    return Math.max(4, Math.min(window.innerHeight - (orb ? orb.offsetHeight : 32) - 4, y));
+  }
+  function setOrbPos(x, y) {
+    orb.style.left = x + 'px';
+    orb.style.top = y + 'px';
+    orb.style.right = 'auto';
+    orb.style.bottom = 'auto';
+  }
+  function saveOrbPos() {
+    try {
+      gmSet(FAB_POS_KEY, JSON.stringify({ x: orb.offsetLeft, y: orb.offsetTop }));
+    } catch (e) {}
+  }
+  function restoreOrbPos() {
+    let p = null;
+    try { p = JSON.parse(gmGet(FAB_POS_KEY, 'null')); } catch (e) {}
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+      setOrbPos(clampX(p.x), clampY(p.y));
+    } else {
+      // 默认右下角，避开左下角的徽标
+      setOrbPos(window.innerWidth - 116, window.innerHeight - 56);
+    }
+  }
+
+  function togglePanelFromOrb(picked) {
+    if (panel) { hidePanel(); updateOrbState(); return; }
+    // 优先用 mousedown 时记下的选区；没有再退回当前选区
+    let text = (picked || '').trim();
+    if (!text) {
+      const sel = window.getSelection();
+      text = sel && !sel.isCollapsed ? sel.toString().trim() : '';
+    }
+    showText(text || firstReadableText());
+    updateOrbState();
+  }
+
+  // 没选中时给点东西看，而不是空面板。
+  // 注意：全页已标注时，正文都在 span.br-wrap 里，而 collectTextNodes 会把
+  // 自己的标注排除掉。所以要先用 plainTextOf 从 br-wrap 还原出干净文本。
+  function firstReadableText() {
+    // 1) 已标注的段落：直接读回纯文本（去掉括号符号）
+    const wrapped = document.querySelectorAll('span.br-wrap[data-br]');
+    for (const w of wrapped) {
+      const t = plainTextOf(w).replace(/\s+/g, ' ').trim();
+      if (t.length >= 20) return t;
+    }
+    // 2) 还没标注：从原始文本节点取
+    const nodes = collectTextNodes(document.body);
+    for (const n of nodes) {
+      const t = (n.nodeValue || '').trim();
+      if (t.length >= 20) return t;
+    }
+    return '';
+  }
+
+  function updateOrbState() {
+    if (!orb) return;
+    const on = siteEnabled();
+    orb.classList.toggle('on', on);
+    orb.classList.toggle('open', !!panel);
+    // 面板和球原本都在右下角，会互相遮挡。开面板时把球抬到面板上方。
+    if (panel) {
+      const r = panel.getBoundingClientRect();
+      if (r.height > 0) {
+        orb.style.top = Math.max(4, r.top - orb.offsetHeight - 10) + 'px';
+        orb.style.bottom = 'auto';
+      }
+    } else {
+      restoreOrbPos();
+    }
+    orb.title = on
+      ? '括号法：本网站已开启（点击打开面板）'
+      : '括号法：本网站已关闭（点击打开面板）';
+  }
+
   // ==================== 启动 ====================
   injectCSS();
 
@@ -925,7 +1107,15 @@ Output the JSON array only. No prose, no markdown fences.`;
     if (e.key === 'Escape') { hidePanel(); removeFab(); }
   });
 
-  // 配置里开了「本站自动」，或者已保存本站开关
+  // 页面里放一个常驻入口，点开即可用，不需要先划线
+  const bootOrb = () => { if (document.body) makeOrb(); };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootOrb, { once: true });
+  } else {
+    bootOrb();
+  }
+
+  // 默认全站开启
   if (siteEnabled()) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', startPageAnnotate, { once: true });

@@ -478,6 +478,11 @@
       if (/ing$/.test(lw) && lw.length > 4) {
         if (prevAux) { t.pos = 'verb'; continue; }   // have been rising / is studying
         if (prev && /^(det|prep|adj|pron|num)$/.test(prev.pos)) { t.pos = 'noun'; continue; }
+        // 介词短语内部：without custom parsing / by using tools
+        // 前面的名词或形容词其实是它的修饰语，-ing 本身是动名词中心词
+        if (prev && (prev.pos === 'noun' || prev.pos === 'verb' || prev.pos === 'adj') && inPrepositionalPhrase(W, i)) {
+          t.pos = 'noun'; continue;
+        }
         if (!prev) { t.pos = 'noun'; continue; }
         if (next && /^(aux|det)$/.test(next.pos)) { t.pos = 'noun'; continue; }
         t.pos = 'nonfinite'; t.nf = 'ing'; continue;
@@ -515,6 +520,18 @@
       const w = W[k];
       if (w.pos === 'sub' || w.pos === 'coord') return false;
       if (w.pos === 'aux' || w.pos === 'verb' || w.pos === 'verb?') return true;
+    }
+    return false;
+  }
+
+  // 该词是否落在某个介词短语的覆盖范围内（向前找最近的介词）
+  function inPrepositionalPhrase(W, i) {
+    for (let k = i - 1; k >= 0 && k >= i - 8; k--) {
+      const p = W[k];
+      if (p.pos === 'prep') return true;
+      if (p.pos === 'coord') continue;       // and/or 连接的不算断点
+      if (p.pos === 'aux' || p.pos === 'verb' || p.pos === 'verb?') return false;
+      if (p.text === ',' || p.text === ';') return false;
     }
     return false;
   }
@@ -656,9 +673,23 @@
         lastNoun = j; j++; continue;  // from 2:00 / for three weeks
       }
       if (t.pos === 'noun' || t.pos === 'pron') {
+        // 出现在介词短语里的 -ing：它是介词宾语，不是谓语
+        // 例：without custom parsing / by carefully checking
+        if (/ing$/.test(t.text.toLowerCase()) && sawNoun) {
+          lastNoun = j; j++; continue;
+        }
         lastNoun = j; sawNoun = true; j++;
         // between rich and poor / in Asia and Africa：同名并列项并入本短语
         continue;
+      }
+      // -ing 被上下文判成了谓动或分词，但处在介词短语内（前面已出现名词修饰语）
+      // 时，它是动名词中心词，应当并入本短语。
+      if (/ing$/.test(t.text.toLowerCase()) && sawNoun && t.pos !== 'noun') {
+        const pv = prevWordAt(toks, j);
+        // 前面是助动词时才是真的谓语（has been running），不并入
+        if (!(pv && (pv.pos === 'aux' || pv.pos === 'verb'))) {
+          lastNoun = j; j++; continue;
+        }
       }
       // and/or + 名词性成分：只有「当前头词是名词/形容词」时才并入并列项
       // （避免把 have been rising 的 rising、working 之类吞掉）

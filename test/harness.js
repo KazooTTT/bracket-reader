@@ -11,7 +11,23 @@ class El {
     this.tagName = tag; this.children = []; this.style = {}; this.dataset = {};
     this.className = ''; this._html = ''; this.hidden = false; this.textContent = '';
     this.attrs = {};
+    this.offsetWidth = 90; this.offsetHeight = 32;
+    this.offsetLeft = 0; this.offsetTop = 0;
+    const self = this;
+    this.classList = {
+      add(...c) { self.className = [...new Set((self.className + ' ' + c.join(' ')).split(/\s+/).filter(Boolean))].join(' '); },
+      remove(...c) { self.className = self.className.split(/\s+/).filter(x => x && !c.includes(x)).join(' '); },
+      toggle(c, force) {
+        const has = self.className.split(/\s+/).includes(c);
+        const want = force === undefined ? !has : !!force;
+        if (want) this.add(c); else this.remove(c);
+        return want;
+      },
+      contains(c) { return self.className.split(/\s+/).includes(c); },
+    };
   }
+  closest() { return null; }
+  contains() { return false; }
   set innerHTML(v) { this._html = v; }
   get innerHTML() { return this._html; }
   appendChild(c) { this.children.push(c); c.parentNode = this; return c; }

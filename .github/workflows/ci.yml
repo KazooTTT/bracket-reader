@@ -56,3 +56,6 @@ jobs:
 
       - name: E2E（并发实现）
         run: node test/e2e/concurrency.mjs
+
+      - name: E2E（悬浮球）
+        run: node test/e2e/orb.mjs

@@ -1,6 +1,6 @@
 {
   "name": "bracket-reader",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "用「括号法」阅读英文长难句的油猴脚本：括出介词短语、从句、非谓语，露出主干",
   "type": "commonjs",
   "scripts": {
@@ -9,7 +9,8 @@
     "test:accuracy": "node test/accuracy.js",
     "test:bottleneck": "node test/bottleneck.js",
     "test:e2e": "node test/e2e/accept.mjs && node test/e2e/concurrency.mjs",
-    "test:sites": "node test/e2e/sites-headless.mjs"
+    "test:sites": "node test/e2e/sites-headless.mjs",
+    "test:orb": "node test/e2e/orb.mjs"
   },
   "keywords": [
     "userscript",
