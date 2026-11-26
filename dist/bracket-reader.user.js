@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         括号法阅读助手 (BracketReader)
 // @namespace    https://github.com/KazooTTT/bracket-reader
-// @version      0.6.0
+// @version      0.7.0
 // @description  用「括号法」阅读英文长难句：把介词短语、从句、非谓语括起来，露出主干。支持离线规则（即时）与 AI 精修（更准），可按网站开关自动标注。
 // @author       kazoottt
 // @match        *://*/*
@@ -1789,39 +1789,53 @@ Output the JSON array only. No prose, no markdown fences.`;
   function injectCSS() {
     const st = document.createElement('style');
     st.textContent = `
-/* ===== 标注本体：主干强化，修饰退让 ===== */
-/* 主干：明确强化。括号法是减法，目标是让主干浮现，
-   所以视觉重心必须压在主干上，而不是给修饰上色。 */
+/* ===== 标注本体 =====
+   用颜色区分主干与修饰。
+   要点：
+   - 主干用「近黑」而不是纯黑或品牌色，避开页面自带的链接蓝，
+     也避免在深色页面上不可见
+   - 不改 font-weight / font-family：页面自己在用 bold 表达语义，
+     我们再动字重就会混淆「谁强调的」
+   - 修饰只降透明度不上色，避免整页花掉
+*/
+
+/* 主干：靠颜色建立视觉重心，但颜色是「相对当前文字色」算出来的，
+   不是写死的近黑 —— 否则在正文本来就是纯黑的页面上毫无差别。
+
+   做法：把当前色往「更饱和/更深」的方向推一档。
+   light 下用 color-mix 把 currentColor 与黑色混合（加深），
+   dark 下与白色混合（提亮）。这样在任何主题上都成立。
+   同时不碰 font-weight / font-size / font-family。 */
 .br-core-t{
-  font-weight:600;
-  color:inherit;
+  color: color-mix(in srgb, currentColor calc(var(--br-core-boost, 0.35) * 100%), #000);
 }
 
-/* 修饰成分：退让。降对比度 + 细括号，不着色、不铺底色。 */
+/* 修饰成分：往背景色方向退（相对计算），不用固定灰，
+   这样在不同主题页面都能保持「比主干淡一档」的关系 */
 .br-mod{
-  color:color-mix(in srgb, currentColor 62%, transparent);
-  padding:0 .1em;
-  box-decoration-break:clone;
-  -webkit-box-decoration-break:clone;
-  overflow-wrap:break-word;
+  color: color-mix(in srgb, currentColor calc(var(--br-mod-fade, 0.52) * 100%), transparent);
+  padding: 0 .1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  overflow-wrap: break-word;
 }
 
-/* 括号符号：比正文略淡，不抢视线 */
+/* 括号符号：比修饰再淡一层，不抢视线 */
 .br-br{
-  color:color-mix(in srgb, currentColor 42%, transparent);
-  font-weight:400;
-  user-select:none;
+  color: color-mix(in srgb, currentColor calc(var(--br-br-fade, 0.34) * 100%), transparent);
+  font-weight: 400;
+  user-select: none;
 }
 
-/* 长片段：再淡一层，避免整段变成一片灰 */
-.br-mod[data-long]{ color:color-mix(in srgb, currentColor 52%, transparent); }
+/* 长片段：再淡一层，避免整段变成一片重色 */
+.br-mod[data-long]{ color: color-mix(in srgb, currentColor calc(var(--br-mod-fade, 0.52) * 100% * 0.8), transparent); }
 
-/* 嵌套：内层不再额外降淡（外层已经足够淡），只让括号更细 */
+/* 嵌套：内层括号更淡 */
 .br-mod[data-nest="1"]>.br-br,
-.br-mod[data-nest="2"]>.br-br{ opacity:.55 }
+.br-mod[data-nest="2"]>.br-br{ opacity: .6 }
 
 /* 置信度低：整段更淡，提示需要核对 */
-.br-mod[data-lowconf]{ opacity:.5 }
+.br-mod[data-lowconf]{ opacity: .5 }
 
 .br-item{margin-bottom:12px;line-height:1.85}
 .br-item:last-child{margin-bottom:0}
@@ -1920,10 +1934,13 @@ Output the JSON array only. No prose, no markdown fences.`;
 .br-toast.show{opacity:1;transform:translate(-50%,0)}
 
 @media(prefers-color-scheme:dark){
- /* 深色下修饰成分要往亮的方向退，而不是压黑 */
- .br-mod{ color:color-mix(in srgb, currentColor 58%, transparent) }
- .br-mod[data-long]{ color:color-mix(in srgb, currentColor 48%, transparent) }
- .br-br{ color:color-mix(in srgb, currentColor 38%, transparent) }
+ /* 深色下主干用近白，修饰用中性灰 */
+ /* 深色下往白的方向提亮 */
+ .br-core-t{ color: color-mix(in srgb, currentColor calc((1 - var(--br-core-boost, 0.35)) * 100%), #fff) }
+ /* 深色下修饰同样相对计算，但混合方向仍是 transparent，靠亮度差体现 */
+ .br-mod{ color: color-mix(in srgb, currentColor calc(var(--br-mod-fade, 0.52) * 100%), transparent) }
+ .br-mod[data-long]{ color: color-mix(in srgb, currentColor calc(var(--br-mod-fade, 0.52) * 100% * 0.8), transparent) }
+ .br-br{ color: color-mix(in srgb, currentColor calc(var(--br-br-fade, 0.34) * 100%), transparent) }
 
  .br-panel{background:#1c1f24;color:#e5e7eb}
  .br-head{background:#22262c;border-color:#2f343c}
